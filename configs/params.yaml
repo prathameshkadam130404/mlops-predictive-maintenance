@@ -1,0 +1,86 @@
+# ==============================================================================
+# Predictive Maintenance MLOps — Centralized Configuration
+#
+# This file is the single source of truth for all pipeline parameters.
+# It is consumed by:
+#   - DVC pipeline stages (dvc.yaml references specific keys)
+#   - Training scripts (logged verbatim to MLflow for reproducibility)
+#   - Monitoring scripts (drift thresholds)
+#   - Retraining trigger logic
+#
+# Changes to this file trigger DVC stage re-execution.
+# ==============================================================================
+
+# --- Data Configuration ---
+data:
+  dataset: "FD001"               # NASA C-MAPSS sub-dataset identifier
+  raw_dir: "data/raw/CMaps"            # Path to raw .txt files
+  processed_dir: "data/processed"  # Parsed parquet output
+  features_dir: "data/features"  # Engineered features output
+  test_size: 0.2                 # Holdout fraction for internal validation
+  random_state: 42               # Global seed for reproducibility
+
+# --- Feature Engineering ---
+features:
+  # Piecewise-linear RUL ceiling.
+  # Rationale: Early-life cycles are functionally identical. Capping at 125
+  # prevents the model from wasting capacity distinguishing cycle 200 from 250
+  # when both are "healthy." Standard practice in PHM literature.
+  rul_cap: 125
+
+  # Sensors to drop (near-constant variance in FD001, confirmed via EDA).
+  # These carry no predictive signal and add noise.
+  drop_sensors: [1, 5, 10, 16, 18, 19]
+
+  # Rolling window sizes for temporal feature extraction.
+  # Multiple scales capture short-term volatility (5) and long-term trends (20).
+  rolling_window_sizes: [5, 10, 20]
+
+  # Lag steps for autoregressive features.
+  # Provides the model with recent historical context.
+  lag_steps: [1, 3, 5]
+
+# --- Model Configuration ---
+model:
+  # Primary model type. Options: "xgboost", "ridge"
+  type: "xgboost"
+
+  xgboost:
+    n_estimators: 200
+    max_depth: 6
+    learning_rate: 0.1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    early_stopping_rounds: 20
+    eval_metric: "rmse"
+    random_state: 42
+    n_jobs: -1                   # Use all CPU cores (i5-13500HX)
+
+  ridge:
+    alpha: 1.0
+
+# --- Training Configuration ---
+training:
+  # GroupKFold splits by engine unit_number.
+  # This prevents temporal leakage — no engine appears in both train and
+  # validation folds. Critical for time-series integrity.
+  cv_folds: 5
+
+# --- Monitoring Configuration ---
+monitoring:
+  # Fraction of features that must drift to trigger an alert.
+  # 0.3 = if >30% of features show statistically significant drift, flag it.
+  drift_share_threshold: 0.3
+
+  # Prediction drift: threshold for Wasserstein distance on RUL predictions.
+  prediction_drift_threshold: 0.1
+
+  # Statistical test for numerical feature drift detection.
+  # "ks" = Kolmogorov-Smirnov (non-parametric, distribution-free).
+  drift_stattest: "ks"
+
+# --- Retraining Trigger Configuration ---
+retraining:
+  trigger_on_data_drift: true
+  trigger_on_prediction_drift: true
+  min_drift_share: 0.3            # Minimum fraction of drifted features

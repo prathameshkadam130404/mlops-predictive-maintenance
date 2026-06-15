@@ -1,0 +1,93 @@
+stages:
+  # =========================================================================
+  # Stage 1: Data Preparation
+  # Parse raw C-MAPSS .txt files → structured Parquet format
+  # =========================================================================
+  prepare:
+    cmd: python -m src.data_loader --config configs/params.yaml
+    deps:
+      - data/raw/CMaps/
+      - src/data_loader.py
+      - configs/params.yaml
+    outs:
+      - data/processed/train.parquet
+      - data/processed/test.parquet
+      - data/processed/test_rul.csv
+
+  # =========================================================================
+  # Stage 2: Data Validation (Differentiator #1)
+  # Pandera schema enforcement — gates downstream stages on failure
+  # =========================================================================
+  validate:
+    cmd: python -m src.validate --config configs/params.yaml
+    deps:
+      - data/processed/train.parquet
+      - data/processed/test.parquet
+      - src/validate.py
+    outs:
+      - reports/validation_report.json:
+          cache: false
+
+  # =========================================================================
+  # Stage 3: Feature Engineering
+  # Transform sensor time-series → tabular features via FeaturePipeline
+  # =========================================================================
+  featurize:
+    cmd: python -m src.feature_engineering --config configs/params.yaml
+    deps:
+      - data/processed/train.parquet
+      - data/processed/test.parquet
+      - src/feature_engineering.py
+      - reports/validation_report.json
+      - configs/params.yaml
+    outs:
+      - data/features/train_features.parquet
+      - data/features/test_features.parquet
+      - models/feature_pipeline.joblib
+    params:
+      - features
+
+  # =========================================================================
+  # Stage 4: Model Training
+  # Train XGBoost/Ridge + log full audit trail to MLflow
+  # =========================================================================
+  train:
+    cmd: python -m src.train --config configs/params.yaml
+    deps:
+      - data/features/train_features.parquet
+      - src/train.py
+      - configs/params.yaml
+    outs:
+      - models/model.joblib
+    metrics:
+      - metrics/train_metrics.json:
+          cache: false
+    plots:
+      - metrics/feature_importance.png:
+          cache: false
+      - metrics/actual_vs_predicted.png:
+          cache: false
+    params:
+      - model
+      - training
+
+  # =========================================================================
+  # Stage 5: Model Evaluation
+  # Evaluate on held-out test set with ground-truth RUL
+  # =========================================================================
+  evaluate:
+    cmd: python -m src.evaluate --config configs/params.yaml
+    deps:
+      - data/features/test_features.parquet
+      - data/processed/test_rul.csv
+      - models/model.joblib
+      - models/feature_pipeline.joblib
+      - src/evaluate.py
+    metrics:
+      - metrics/eval_metrics.json:
+          cache: false
+    plots:
+      - metrics/rul_distribution.png:
+          cache: false
+      - metrics/error_histogram.png:
+          cache: false

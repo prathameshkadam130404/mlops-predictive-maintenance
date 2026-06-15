@@ -1,0 +1,152 @@
+# ==============================================================================
+# GitHub Actions CI — MLOps Pipeline
+# Triggers: push to main/develop, PRs to main
+#
+# Jobs:
+#   1. lint-and-test: Code quality (ruff) + unit tests (pytest)
+#   2. train-and-report: Full DVC pipeline + drift check + PR summary
+# ==============================================================================
+
+name: "MLOps CI — Train, Test, Report"
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Job 1: Lint & Unit Tests
+  # -------------------------------------------------------------------------
+  lint-and-test:
+    name: "Lint & Test"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff pytest httpx pytest-cov
+
+      - name: Lint with ruff
+        run: ruff check src/ api/ tests/
+
+      - name: Run unit tests
+        run: pytest tests/ -v --tb=short --cov=src --cov=api --cov-report=term-missing
+
+  # -------------------------------------------------------------------------
+  # Job 2: Train Model & Generate Reports
+  # -------------------------------------------------------------------------
+  train-and-report:
+    name: "Train & Report"
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install dvc
+
+      - name: Initialize DVC
+        run: dvc init --no-scm || true
+
+      - name: Run DVC Pipeline
+        run: dvc repro
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Run 3-Layer Drift Check
+        run: python -m src.monitor --config configs/params.yaml
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Check Retraining Trigger
+        run: python -m src.retrain_check --config configs/params.yaml
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Generate Model Card
+        run: python -m src.model_card --config configs/params.yaml
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Report Metrics to PR Summary
+        if: always()
+        run: |
+          echo "## 📊 Model Evaluation Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f metrics/eval_metrics.json ]; then
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat metrics/eval_metrics.json >> $GITHUB_STEP_SUMMARY
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Evaluation metrics not available." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## 🔍 Drift Monitoring Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f reports/drift_summary.json ]; then
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat reports/drift_summary.json >> $GITHUB_STEP_SUMMARY
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## ✅ Data Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f reports/validation_report.json ]; then
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat reports/validation_report.json >> $GITHUB_STEP_SUMMARY
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## 🔄 Retraining Decision" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f reports/retrain_decision.json ]; then
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat reports/retrain_decision.json >> $GITHUB_STEP_SUMMARY
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload ML Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ml-reports
+          path: |
+            metrics/
+            reports/
+            MODEL_CARD.md
+          retention-days: 30

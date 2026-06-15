@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: predictive-maintenance-api
+    runtime: docker
+    dockerfilePath: docker/Dockerfile
+    plan: free
+    healthCheckPath: /health
+    numInstances: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: PYTHONUNBUFFERED
+        value: "1"
