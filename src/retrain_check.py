@@ -1,24 +1,14 @@
 """
-Automated Retraining Trigger (Differentiator #6)
-==================================================
+Automated Retraining Trigger
+=============================
 
 Evaluates whether model retraining is needed based on drift signals.
-Completes the MLOps loop: deploy → monitor → detect degradation → retrain.
-
-Most portfolio projects end at "deploy model." This module continues to
-"detect degradation → recommend retraining," demonstrating understanding
-of Continuous Training (CT) — not just CI/CD.
 
 The module:
     1. Reads drift summary from the monitoring module
     2. Evaluates retraining conditions against configurable thresholds
     3. Returns a structured decision with reasoning
     4. Exits with code 1 if retraining is needed (CI/CD integration)
-
-In production, this would trigger:
-    - An automated retraining workflow (dvc repro with new data)
-    - Slack/email alert to the ML engineering team
-    - A model registry stage transition (Production → Staging)
 """
 
 from __future__ import annotations

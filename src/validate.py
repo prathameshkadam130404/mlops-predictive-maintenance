@@ -1,17 +1,10 @@
 """
-Data Validation Layer (Differentiator #1)
-==========================================
+Data Validation Layer
+=====================
 
 Implements Pandera schema-based validation for the predictive maintenance pipeline.
-This module enforces data quality as a pipeline gate — if validation fails, downstream
+Enforces data quality as a pipeline gate — if validation fails, downstream
 stages (feature engineering, training) are blocked.
-
-Why this matters:
-    - 80% of ML production failures trace back to data quality issues
-    - Schema enforcement catches silent data corruption (sensor miscalibration,
-      missing readings, format changes) before they reach the model
-    - When an interviewer asks "What happens if bad data enters your pipeline?",
-      you have a concrete, auditable answer
 
 Three validation schemas:
     1. RawSensorSchema   — validates parsed C-MAPSS sensor data

@@ -1,30 +1,22 @@
 """
-Three-Layer Drift Monitoring (Differentiator #3)
-=================================================
+Three-Layer Drift Monitoring
+============================
 
-Most MLOps portfolios implement only data drift detection. This module
-implements THREE layers of drift monitoring, demonstrating production-level
-monitoring maturity:
+Implements three layers of drift detection using EvidentlyAI:
 
 Layer 1 — Data Drift:
-    Detects shifts in sensor input distributions between training (reference)
-    and production (current) data using Kolmogorov-Smirnov tests.
+    Kolmogorov-Smirnov tests on sensor input distributions between
+    reference (training) and current data.
 
 Layer 2 — Prediction Drift:
-    Detects shifts in the model's RUL prediction distribution. This catches
-    model staleness even when ground-truth labels aren't available (which is
-    the norm in production — you rarely know the true RUL in real time).
+    Wasserstein distance on the model's RUL output distribution.
+    Detects model staleness without requiring ground-truth labels.
 
 Layer 3 — Concept Drift Simulation:
-    Demonstrates understanding that the relationship between inputs and
-    outputs can change. In real equipment, the same sensor readings might
-    indicate different failure modes as machines age. This layer simulates
-    that scenario and shows the model's degraded performance.
+    Injects correlated noise and baseline shifts to simulate changes
+    in the sensor-failure relationship, then measures prediction impact.
 
-All reports are:
-    - Saved as HTML (human-readable, shareable)
-    - Saved as JSON (machine-readable, CI-consumable)
-    - Logged to MLflow as artifacts (historical tracking)
+Outputs: HTML report, JSON summary, MLflow artifacts.
 """
 
 from __future__ import annotations
@@ -240,7 +232,8 @@ def simulate_concept_drift(
         1. Adding correlated noise to sensor groups (simulating sensor degradation)
         2. Shifting specific sensor baselines (simulating operating condition changes)
 
-    This is more realistic than simple Gaussian noise injection.
+    Applies correlated noise to sensor groups and baseline shifts to
+    selected sensors.
 
     Args:
         reference_data: Clean reference DataFrame.
@@ -437,7 +430,7 @@ def main() -> None:
         feature_cols = train_features.columns.tolist()
 
     # For demonstration, split training data into reference/current
-    # In production, 'current' would be real-time incoming data
+    # For demonstration, split training data into reference/current
     n_split = len(train_features) // 2
     reference_data = train_features.iloc[:n_split]
     current_data = train_features.iloc[n_split:]

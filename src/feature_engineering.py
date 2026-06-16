@@ -1,26 +1,20 @@
 """
-Feature Engineering Pipeline (Differentiator #2: Training-Serving Skew Prevention)
-==================================================================================
+Feature Engineering Pipeline
+============================
 
-Transforms raw sensor time-series into tabular features suitable for tree-based
-models (XGBoost, Ridge). The core design principle is the `FeaturePipeline` class —
-a single, serializable pipeline used IDENTICALLY in both training and inference.
+Transforms raw sensor time-series into tabular features for tree-based models.
 
-Training-Serving Skew Prevention:
-    The `FeaturePipeline` class is the mechanism that prevents the #1 silent failure
-    in production ML. During training, `fit_transform()` fits scalers and records
-    feature columns. The fitted state is serialized via `save()`. At inference time
-    (in the FastAPI app), `FeaturePipeline.load()` restores the exact same state,
-    and `transform()` applies identical transformations. No re-fitting. No
-    re-implementation. Same class, same code path.
+Core component: `FeaturePipeline` class — a serializable pipeline used in both
+training (`fit_transform`) and inference (`transform`) to ensure identical
+transformations.
 
-Feature Categories:
-    1. RUL Labeling:       Piecewise-linear remaining useful life computation
-    2. Sensor Filtering:   Drop near-constant sensors (no predictive signal)
+Feature categories:
+    1. RUL Labeling:       Piecewise-linear remaining useful life (capped)
+    2. Sensor Filtering:   Drop near-constant sensors
     3. Normalization:      MinMaxScaler fit on train, transform on both
-    4. Rolling Statistics:  Per-engine rolling mean/std/min/max (multiple windows)
+    4. Rolling Statistics:  Per-engine rolling mean/std/min/max
     5. Lag Features:       Per-engine autoregressive lag values
-    6. Difference Features: First-order differences (degradation rate)
+    6. Difference Features: First-order differences
 """
 
 from __future__ import annotations
@@ -55,16 +49,11 @@ logger = logging.getLogger(__name__)
 def compute_rul(df: pd.DataFrame, rul_cap: int = 125) -> pd.DataFrame:
     """Compute piecewise-linear Remaining Useful Life for each engine.
 
-    For each engine, RUL at cycle t = max_cycle - t.
-    Values are capped at `rul_cap` because early-life cycles are functionally
-    identical — the model shouldn't waste capacity distinguishing cycle 200
-    from cycle 250 when both are "healthy."
-
-    This is standard practice in PHM (Prognostics and Health Management) literature.
+    RUL at cycle t = max_cycle - t, capped at `rul_cap`.
 
     Args:
         df: DataFrame with 'unit_number' and 'time_cycles' columns.
-        rul_cap: Maximum RUL value (default 125, standard for C-MAPSS).
+        rul_cap: Maximum RUL value (default 125).
 
     Returns:
         DataFrame with 'rul' column added.
@@ -81,16 +70,11 @@ def drop_constant_sensors(
 ) -> pd.DataFrame:
     """Remove sensors with near-constant variance.
 
-    In C-MAPSS FD001, sensors 1, 5, 10, 16, 18, 19 have near-zero variance
-    across all engines and cycles. They carry no predictive signal and
-    increase dimensionality without benefit.
-
-    This is confirmed by variance analysis during EDA and is well-documented
-    in published C-MAPSS benchmarks.
+    Sensors 1, 5, 10, 16, 18, 19 in C-MAPSS FD001 have near-zero variance.
 
     Args:
         df: Sensor DataFrame.
-        sensors_to_drop: List of sensor indices to remove (e.g., [1, 5, 10]).
+        sensors_to_drop: List of sensor indices to remove.
 
     Returns:
         DataFrame with specified sensor columns removed.
@@ -109,23 +93,13 @@ def add_rolling_features(
 ) -> pd.DataFrame:
     """Compute per-engine rolling window statistics for sensor readings.
 
-    For each sensor × window size, computes:
-        - rolling_mean: smoothed trend
-        - rolling_std: volatility / instability
-        - rolling_min: minimum excursion
-        - rolling_max: maximum excursion
-
-    All computations are grouped by `unit_number` to prevent cross-engine leakage.
-    Uses `min_periods=1` to handle early cycles where insufficient history exists.
-
-    Why multiple window sizes:
-        - Small windows (5): capture sudden sensor spikes
-        - Medium windows (10): capture short-term trends
-        - Large windows (20): capture long-term degradation patterns
+    For each sensor × window size, computes rolling mean, std, min, max.
+    Grouped by `unit_number` to prevent cross-engine leakage.
+    Uses `min_periods=1` for early cycles with insufficient history.
 
     Args:
         df: DataFrame with sensor columns and 'unit_number'.
-        sensor_cols: List of sensor column names to process.
+        sensor_cols: List of sensor column names.
         window_sizes: List of window sizes (in cycles).
 
     Returns:
@@ -159,19 +133,14 @@ def add_lag_features(
     sensor_cols: list[str],
     lag_steps: list[int],
 ) -> pd.DataFrame:
-    """Create per-engine lag features for autoregressive context.
+    """Create per-engine lag features.
 
-    Lag features give the model access to recent historical values,
-    essential for capturing short-term trends that rolling statistics
-    might smooth out.
-
-    Forward-fills NaN values created at the start of each engine's
-    trajectory (where lag > available history).
+    Forward-fills NaN values at the start of each engine's trajectory.
 
     Args:
         df: DataFrame with sensor columns and 'unit_number'.
-        sensor_cols: List of sensor column names to process.
-        lag_steps: List of lag step sizes (e.g., [1, 3, 5]).
+        sensor_cols: List of sensor column names.
+        lag_steps: List of lag step sizes.
 
     Returns:
         DataFrame with added lag feature columns.
@@ -197,17 +166,13 @@ def add_diff_features(
     df: pd.DataFrame,
     sensor_cols: list[str],
 ) -> pd.DataFrame:
-    """Compute first-order difference features (rate of degradation).
+    """Compute first-order difference features.
 
-    The difference between consecutive readings captures the rate of change
-    in each sensor. A healthy engine has near-zero differences; a degrading
-    engine shows increasing differences as sensors deviate from baseline.
-
-    This is a lightweight proxy for the derivative of the sensor signal.
+    Captures the rate of change per sensor per engine.
 
     Args:
         df: DataFrame with sensor columns and 'unit_number'.
-        sensor_cols: List of sensor column names to process.
+        sensor_cols: List of sensor column names.
 
     Returns:
         DataFrame with added difference feature columns.
@@ -221,27 +186,21 @@ def add_diff_features(
 
 
 # ---------------------------------------------------------------------------
-# FeaturePipeline Class — The Training-Serving Skew Prevention Mechanism
+# FeaturePipeline Class
 # ---------------------------------------------------------------------------
 
 
 class FeaturePipeline:
-    """Unified feature engineering pipeline used in both training and inference.
+    """Unified feature engineering pipeline for training and inference.
 
-    This class is the cornerstone of training-serving skew prevention. The same
-    `FeaturePipeline` instance (or a deserialized copy of it) is used in:
-        - `src/train.py` via `fit_transform()` during training
-        - `api/main.py` via `transform()` during inference
-
-    The pipeline is serialized with `save()` and restored with `load()`.
-    The scaler, feature column list, and configuration are all preserved,
-    ensuring byte-identical transformations at inference time.
+    Ensures identical transformations at training and serving time by
+    serializing the fitted scaler, feature list, and config.
 
     Attributes:
         config: Feature engineering configuration from params.yaml.
-        scaler: Fitted MinMaxScaler (None before fit_transform).
-        feature_columns: Ordered list of feature column names (None before fit_transform).
-        sensor_cols: List of active sensor column names (after dropping constants).
+        scaler: Fitted MinMaxScaler (None before fit).
+        feature_columns: Ordered list of feature column names.
+        sensor_cols: Active sensor column names.
     """
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -317,8 +276,8 @@ class FeaturePipeline:
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """Apply fitted transformations to new data (test or inference).
 
-        Uses the scaler and configuration fitted during `fit_transform()`.
-        Does NOT re-fit. This is the key to preventing training-serving skew.
+        Uses the scaler and configuration from `fit_transform()`.
+        Does not re-fit.
 
         Args:
             df: New DataFrame to transform (test data or API input).
@@ -361,12 +320,6 @@ class FeaturePipeline:
     def save(self, path: str | Path) -> None:
         """Serialize the fitted pipeline to disk.
 
-        Saves the scaler, feature columns, sensor list, and config together
-        as a single joblib artifact. This file is:
-            - Tracked by DVC as a pipeline output
-            - Logged to MLflow as a training artifact
-            - Loaded by the FastAPI app at startup
-
         Args:
             path: Filepath to save the pipeline artifact.
         """
@@ -389,17 +342,14 @@ class FeaturePipeline:
     def load(cls, path: str | Path) -> FeaturePipeline:
         """Load a fitted pipeline from disk.
 
-        Used by the FastAPI app to restore the exact pipeline state
-        from training, ensuring identical transformations at inference.
-
         Args:
             path: Filepath to the saved pipeline artifact.
 
         Returns:
-            Fitted FeaturePipeline instance ready for transform().
+            Fitted FeaturePipeline instance.
 
         Raises:
-            FileNotFoundError: If the pipeline artifact doesn't exist.
+            FileNotFoundError: If the artifact doesn't exist.
         """
         path = Path(path)
         if not path.exists():

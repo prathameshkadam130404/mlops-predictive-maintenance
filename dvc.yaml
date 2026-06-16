@@ -15,7 +15,7 @@ stages:
       - data/processed/test_rul.csv
 
   # =========================================================================
-  # Stage 2: Data Validation (Differentiator #1)
+  # Stage 2: Data Validation
   # Pandera schema enforcement — gates downstream stages on failure
   # =========================================================================
   validate:

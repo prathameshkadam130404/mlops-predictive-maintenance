@@ -1,10 +1,10 @@
 """
-Automated Model Card Generation (Differentiator #5)
+Automated Model Card Generation
 =====================================================
 
-Auto-generates a MODEL_CARD.md following Google's Model Cards framework.
-This is a documentation artifact that almost nobody includes in portfolio
-projects, but signals awareness of model governance and responsible AI.
+Auto-generates a MODEL_CARD.md following Google's Model Cards framework,
+providing structured documentation of model details, performance,
+limitations, and ethical considerations.
 
 The model card is generated from:
     - Training metrics (metrics/train_metrics.json)

@@ -1,28 +1,12 @@
 """
-Model Training with Full MLflow Audit Trail (Differentiator #4)
-================================================================
+Model Training with MLflow Audit Trail
+======================================
 
-Trains XGBoost or Ridge regression models for RUL prediction and logs
-comprehensive experiment metadata to MLflow for full reproducibility
-and lineage traceability.
+Trains XGBoost or Ridge regression models for RUL prediction.
+Logs all parameters, metrics, and lineage metadata (Git hash, DVC hash,
+config hash, validation status) to MLflow for reproducibility.
 
-Audit Trail (what most people skip):
-    Every MLflow run logs not just hyperparameters and metrics, but also:
-    - Git commit hash (exact code version)
-    - DVC data hash (exact dataset version)
-    - params.yaml hash (exact configuration version)
-    - Data validation status (did the input pass schema checks?)
-    - Python and library versions
-    - Training data shape and feature count
-
-    This creates a "golden thread" from any production prediction back
-    to the exact code + data + config that produced the model.
-
-Validation strategy:
-    Uses GroupKFold by engine unit_number to prevent temporal leakage.
-    No engine appears in both training and validation folds. This is
-    critical for time-series data — random splitting would allow the
-    model to learn from future cycles of the same engine.
+Validation: GroupKFold by engine unit_number to prevent temporal leakage.
 """
 
 from __future__ import annotations
@@ -438,7 +422,7 @@ def main() -> None:
         for metric_name, metric_value in metrics.items():
             mlflow.log_metric(metric_name, metric_value)
 
-        # === AUDIT TRAIL (Differentiator #4) ===
+        # === AUDIT TRAIL ===
         mlflow.log_param("_audit.git_commit_hash", get_git_hash())
         mlflow.log_param("_audit.dvc_data_hash", get_dvc_data_hash())
         mlflow.log_param("_audit.params_yaml_hash", hash_file("configs/params.yaml"))
