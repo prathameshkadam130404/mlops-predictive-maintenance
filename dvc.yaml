@@ -45,7 +45,8 @@ stages:
       - data/features/test_features.parquet
       - models/feature_pipeline.joblib
     params:
-      - features
+      - configs/params.yaml:
+        - features
 
   # =========================================================================
   # Stage 4: Model Training
@@ -68,8 +69,9 @@ stages:
       - metrics/actual_vs_predicted.png:
           cache: false
     params:
-      - model
-      - training
+      - configs/params.yaml:
+        - model
+        - training
 
   # =========================================================================
   # Stage 5: Model Evaluation

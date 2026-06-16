@@ -14,7 +14,7 @@ PIP := $(CONDA_RUN) pip
 
 .PHONY: install
 install: ## Install missing production + dev dependencies into ncm env
-	$(PIP) install xgboost>=2.1 mlflow>=2.17 "dvc>=3.56" evidently>=0.5 \
+	$(PIP) install xgboost>=2.1 mlflow>=2.17 "dvc>=3.56" evidently==0.4.31 \
 		gunicorn>=23.0 pandera>=0.21 ruff>=0.8 mypy>=1.13 pytest-cov>=5.0
 
 # --- Code Quality ------------------------------------------------------------

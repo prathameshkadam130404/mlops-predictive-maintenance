@@ -1,0 +1,192 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: python -m src.data_loader --config configs/params.yaml
+    deps:
+    - path: configs/params.yaml
+      hash: md5
+      md5: 9017a227bdc852cfecc88d9088ba64c2
+      size: 3095
+    - path: data/raw/CMaps/
+      hash: md5
+      md5: 1bcaab131e96737ba4ebcfd35c360efc.dir
+      size: 45350831
+      nfiles: 15
+    - path: src/data_loader.py
+      hash: md5
+      md5: d9b2952a14609b1efc3fbbbba89925c5
+      size: 9660
+    outs:
+    - path: data/processed/test.parquet
+      hash: md5
+      md5: 12d6febd27363aff85f82bc9f2e6961d
+      size: 344764
+    - path: data/processed/test_rul.csv
+      hash: md5
+      md5: 039eaa435e2bf9825cff0820c0a26153
+      size: 434
+    - path: data/processed/train.parquet
+      hash: md5
+      md5: cb9790edd1f159a0b56ad6570946445f
+      size: 526917
+  validate:
+    cmd: python -m src.validate --config configs/params.yaml
+    deps:
+    - path: data/processed/test.parquet
+      hash: md5
+      md5: 12d6febd27363aff85f82bc9f2e6961d
+      size: 344764
+    - path: data/processed/train.parquet
+      hash: md5
+      md5: cb9790edd1f159a0b56ad6570946445f
+      size: 526917
+    - path: src/validate.py
+      hash: md5
+      md5: 7aed0862a642377e8434b07375f164a6
+      size: 15544
+    outs:
+    - path: reports/validation_report.json
+      hash: md5
+      md5: 435a1bb88bbf93024fdbd3b3da999461
+      size: 445
+  featurize:
+    cmd: python -m src.feature_engineering --config configs/params.yaml
+    deps:
+    - path: configs/params.yaml
+      hash: md5
+      md5: 9017a227bdc852cfecc88d9088ba64c2
+      size: 3095
+    - path: data/processed/test.parquet
+      hash: md5
+      md5: 12d6febd27363aff85f82bc9f2e6961d
+      size: 344764
+    - path: data/processed/train.parquet
+      hash: md5
+      md5: cb9790edd1f159a0b56ad6570946445f
+      size: 526917
+    - path: reports/validation_report.json
+      hash: md5
+      md5: 435a1bb88bbf93024fdbd3b3da999461
+      size: 445
+    - path: src/feature_engineering.py
+      hash: md5
+      md5: fe767fd931188b9bc87332bca5dc251b
+      size: 19522
+    params:
+      configs/params.yaml:
+        features:
+          rul_cap: 125
+          drop_sensors:
+          - 1
+          - 5
+          - 10
+          - 16
+          - 18
+          - 19
+          rolling_window_sizes:
+          - 5
+          - 10
+          - 20
+          lag_steps:
+          - 1
+          - 3
+          - 5
+    outs:
+    - path: data/features/test_features.parquet
+      hash: md5
+      md5: 52b60dd9ec17c9807d44501ef6f6b7d0
+      size: 11331527
+    - path: data/features/train_features.parquet
+      hash: md5
+      md5: 565efa857a7fe756e369bbf55489d630
+      size: 17664937
+    - path: models/feature_pipeline.joblib
+      hash: md5
+      md5: cffe4ecdb8930cb8781a05af414dbc5a
+      size: 5994
+  train:
+    cmd: python -m src.train --config configs/params.yaml
+    deps:
+    - path: configs/params.yaml
+      hash: md5
+      md5: 9017a227bdc852cfecc88d9088ba64c2
+      size: 3095
+    - path: data/features/train_features.parquet
+      hash: md5
+      md5: 565efa857a7fe756e369bbf55489d630
+      size: 17664937
+    - path: src/train.py
+      hash: md5
+      md5: a4fc56376395f5b362f837a4b49b98b4
+      size: 17015
+    params:
+      configs/params.yaml:
+        model:
+          type: xgboost
+          xgboost:
+            n_estimators: 200
+            max_depth: 6
+            learning_rate: 0.1
+            subsample: 0.8
+            colsample_bytree: 0.8
+            early_stopping_rounds: 20
+            eval_metric: rmse
+            random_state: 42
+            n_jobs: -1
+          ridge:
+            alpha: 1.0
+        training:
+          cv_folds: 5
+    outs:
+    - path: metrics/actual_vs_predicted.png
+      hash: md5
+      md5: 6740f06d84c28f43ab60432ca28cca7a
+      size: 220917
+    - path: metrics/feature_importance.png
+      hash: md5
+      md5: bd505d5b0eb8fd4dc875e9855cd1a53e
+      size: 66244
+    - path: metrics/train_metrics.json
+      hash: md5
+      md5: bbaf433908b3b21d084836497314c0bf
+      size: 235
+    - path: models/model.joblib
+      hash: md5
+      md5: fe371139c12b79de72e14c22923927c1
+      size: 943840
+  evaluate:
+    cmd: python -m src.evaluate --config configs/params.yaml
+    deps:
+    - path: data/features/test_features.parquet
+      hash: md5
+      md5: 52b60dd9ec17c9807d44501ef6f6b7d0
+      size: 11331527
+    - path: data/processed/test_rul.csv
+      hash: md5
+      md5: 039eaa435e2bf9825cff0820c0a26153
+      size: 434
+    - path: models/feature_pipeline.joblib
+      hash: md5
+      md5: cffe4ecdb8930cb8781a05af414dbc5a
+      size: 5994
+    - path: models/model.joblib
+      hash: md5
+      md5: fe371139c12b79de72e14c22923927c1
+      size: 943840
+    - path: src/evaluate.py
+      hash: md5
+      md5: 09d3a29f6f2f070ee19c61c4dae6f653
+      size: 8548
+    outs:
+    - path: metrics/error_histogram.png
+      hash: md5
+      md5: 1f2c525f0775f16ad93386fe786e87bd
+      size: 36663
+    - path: metrics/eval_metrics.json
+      hash: md5
+      md5: 86e18ad6a638e8aeab984d25e66bdf79
+      size: 311
+    - path: metrics/rul_distribution.png
+      hash: md5
+      md5: 4dbdff225e7876d6ce2bf57e17a71916
+      size: 33181
