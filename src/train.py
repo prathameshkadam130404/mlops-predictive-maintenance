@@ -458,11 +458,8 @@ def main() -> None:
         if pipeline_path.exists():
             mlflow.log_artifact(str(pipeline_path))
 
-        # Log the model to MLflow's model registry format
-        if model_config["type"] == "xgboost" and HAS_XGBOOST:
-            mlflow.xgboost.log_model(model, "model")
-        else:
-            mlflow.sklearn.log_model(model, "model")
+        # Log the model to MLflow's model registry format (handles both Ridge and XGBRegressor)
+        mlflow.sklearn.log_model(model, "model")
 
         run_id = mlflow.active_run().info.run_id
         logger.info("MLflow run completed: %s", run_id)
