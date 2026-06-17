@@ -1,11 +1,8 @@
 """Tests for the training module."""
 
-import json
 from pathlib import Path
-from unittest.mock import patch
 
 import numpy as np
-import pytest
 
 from src.train import compute_asymmetric_score, flatten_dict, get_git_hash, hash_file
 

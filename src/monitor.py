@@ -34,7 +34,6 @@ import yaml
 from evidently import ColumnMapping
 from evidently.metric_preset import DataDriftPreset
 from evidently.report import Report
-from evidently.test_preset import DataDriftTestPreset
 from evidently.test_suite import TestSuite
 from evidently.tests import TestShareOfDriftedColumns
 

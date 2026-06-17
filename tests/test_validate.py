@@ -5,12 +5,9 @@ import pandas as pd
 import pytest
 
 from src.validate import (
-    ValidationResult,
-    build_raw_sensor_schema,
     validate_features,
     validate_raw_data,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

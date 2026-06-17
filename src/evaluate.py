@@ -28,7 +28,6 @@ import pandas as pd
 import yaml
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from src.feature_engineering import FeaturePipeline
 from src.train import compute_asymmetric_score
 
 matplotlib.use("Agg")

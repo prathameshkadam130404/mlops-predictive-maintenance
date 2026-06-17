@@ -25,7 +25,6 @@ from pathlib import Path
 from typing import Any
 
 import joblib
-import numpy as np
 import pandas as pd
 import yaml
 from sklearn.preprocessing import MinMaxScaler
@@ -113,16 +112,16 @@ def add_rolling_features(
             grouped = df.groupby("unit_number")[sensor]
 
             df[f"{sensor}_roll_mean_{window}"] = grouped.transform(
-                lambda x: x.rolling(window=window, min_periods=1).mean()
+                lambda x, w=window: x.rolling(window=w, min_periods=1).mean()
             )
             df[f"{sensor}_roll_std_{window}"] = grouped.transform(
-                lambda x: x.rolling(window=window, min_periods=1).std().fillna(0)
+                lambda x, w=window: x.rolling(window=w, min_periods=1).std().fillna(0)
             )
             df[f"{sensor}_roll_min_{window}"] = grouped.transform(
-                lambda x: x.rolling(window=window, min_periods=1).min()
+                lambda x, w=window: x.rolling(window=w, min_periods=1).min()
             )
             df[f"{sensor}_roll_max_{window}"] = grouped.transform(
-                lambda x: x.rolling(window=window, min_periods=1).max()
+                lambda x, w=window: x.rolling(window=w, min_periods=1).max()
             )
 
     return df
@@ -452,12 +451,12 @@ def main() -> None:
     test_transformed = pipeline.transform(test_df)
 
     # Extract feature matrices
-    X_train = pipeline.get_feature_matrix(train_transformed)
+    x_train = pipeline.get_feature_matrix(train_transformed)
     y_train = train_transformed["rul"]
-    train_features = pd.concat([X_train, y_train], axis=1)
+    train_features = pd.concat([x_train, y_train], axis=1)
 
-    X_test = pipeline.get_feature_matrix(test_transformed)
-    test_features = X_test  # No RUL in test features (ground truth is separate)
+    x_test = pipeline.get_feature_matrix(test_transformed)
+    test_features = x_test  # No RUL in test features (ground truth is separate)
 
     # Save feature matrices
     train_features.to_parquet(features_dir / "train_features.parquet", index=False)
@@ -468,8 +467,8 @@ def main() -> None:
 
     logger.info(
         "Feature engineering complete: %d train features, %d test features",
-        len(X_train.columns),
-        len(X_test.columns),
+        len(x_train.columns),
+        len(x_test.columns),
     )
 
 

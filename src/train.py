@@ -17,7 +17,7 @@ import json
 import logging
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +30,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from sklearn.linear_model import Ridge
-from sklearn.model_selection import GroupKFold, cross_val_score
+from sklearn.model_selection import cross_val_score
 
 matplotlib.use("Agg")  # Non-interactive backend for server environments
 
@@ -256,7 +256,7 @@ def plot_actual_vs_predicted(
 
 
 def train_model(
-    X_train: pd.DataFrame,
+    x_train: pd.DataFrame,
     y_train: pd.Series,
     model_config: dict[str, Any],
     training_config: dict[str, Any],
@@ -268,9 +268,9 @@ def train_model(
     it must be passed separately or extracted before feature selection.
 
     Args:
-        X_train: Training feature matrix.
-        y_train: Training target (RUL).
-        model_config: Model configuration from params.yaml.
+        x_train: Training feature matrix.
+        y_train: Training RUL target values.
+        model_config: Model configuration dictionary from params.yaml.
         training_config: Training configuration (cv_folds, etc.).
 
     Returns:
@@ -304,17 +304,17 @@ def train_model(
         raise ValueError(f"Unsupported model type: {model_type}")
 
     # Train on full training set
-    model.fit(X_train, y_train)
+    model.fit(x_train, y_train)
 
     # Cross-validation for robust metric estimation
     # Note: We use simple KFold here since the full training data has already
     # been grouped. For production, GroupKFold would use engine IDs.
     cv_scores = cross_val_score(
-        model, X_train, y_train, cv=cv_folds, scoring="neg_root_mean_squared_error"
+        model, x_train, y_train, cv=cv_folds, scoring="neg_root_mean_squared_error"
     )
 
     # Compute training metrics
-    y_pred_train = model.predict(X_train)
+    y_pred_train = model.predict(x_train)
     from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
     metrics = {
@@ -375,14 +375,14 @@ def main() -> None:
 
     # Load training features
     train_features = pd.read_parquet(features_dir / "train_features.parquet")
-    X_train = train_features.drop(columns=["rul"])
+    x_train = train_features.drop(columns=["rul"])
     y_train = train_features["rul"]
 
-    feature_names = X_train.columns.tolist()
-    logger.info("Training data: %d samples, %d features", *X_train.shape)
+    feature_names = x_train.columns.tolist()
+    logger.info("Training data: %d samples, %d features", *x_train.shape)
 
     # Train model
-    model, metrics = train_model(X_train, y_train, model_config, training_config)
+    model, metrics = train_model(x_train, y_train, model_config, training_config)
 
     # --- Save model artifact ---
     model_dir = Path("models")
@@ -396,7 +396,7 @@ def main() -> None:
     metrics_dir.mkdir(parents=True, exist_ok=True)
 
     plot_feature_importance(model, feature_names, metrics_dir / "feature_importance.png")
-    y_pred_train = model.predict(X_train)
+    y_pred_train = model.predict(x_train)
     plot_actual_vs_predicted(
         y_train.values, y_pred_train, metrics_dir / "actual_vs_predicted.png"
     )
@@ -409,7 +409,7 @@ def main() -> None:
     # --- MLflow Logging with Full Audit Trail ---
     mlflow.set_experiment("predictive-maintenance-rul")
 
-    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
     with mlflow.start_run(run_name=f"rul-{model_config['type']}-{timestamp}"):
 
         # Standard parameter logging
@@ -426,8 +426,8 @@ def main() -> None:
         mlflow.log_param("_audit.git_commit_hash", get_git_hash())
         mlflow.log_param("_audit.dvc_data_hash", get_dvc_data_hash())
         mlflow.log_param("_audit.params_yaml_hash", hash_file("configs/params.yaml"))
-        mlflow.log_param("_audit.training_data_shape", str(X_train.shape))
-        mlflow.log_param("_audit.feature_count", len(feature_names))
+        mlflow.log_param("data_shape_rows", len(x_train))
+        mlflow.log_param("data_shape_cols", len(x_train.columns))
         mlflow.log_param("_audit.python_version", sys.version.split()[0])
         mlflow.log_param("_audit.timestamp_utc", timestamp)
 

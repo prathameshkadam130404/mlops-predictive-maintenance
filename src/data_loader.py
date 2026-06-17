@@ -25,15 +25,10 @@ from __future__ import annotations
 
 import argparse
 import logging
-import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pandas as pd
 import yaml
-
-if TYPE_CHECKING:
-    pass
 
 # ---------------------------------------------------------------------------
 # Logging Configuration

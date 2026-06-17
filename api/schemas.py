@@ -9,7 +9,7 @@ ensuring invalid inputs are rejected before reaching the model.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -100,7 +100,7 @@ class PredictionResponse(BaseModel):
     rul_prediction: float = Field(..., description="Predicted Remaining Useful Life (in cycles)")
     model_version: str = Field(..., description="Model version identifier")
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(tz=timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(tz=UTC).isoformat(),
         description="Prediction timestamp (UTC)",
     )
     input_cycles: int = Field(..., description="Number of input cycles processed")
@@ -112,7 +112,7 @@ class HealthResponse(BaseModel):
 
     status: str = Field(default="healthy", description="Service status")
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(tz=timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(tz=UTC).isoformat()
     )
 
 

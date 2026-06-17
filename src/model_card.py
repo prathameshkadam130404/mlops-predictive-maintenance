@@ -23,12 +23,12 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
 
-from src.train import get_git_hash, get_dvc_data_hash
+from src.train import get_dvc_data_hash, get_git_hash
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -71,7 +71,7 @@ def generate_model_card(
     rul_cap = config.get("features", {}).get("rul_cap", 125)
     git_hash = get_git_hash()
     data_hash = get_dvc_data_hash()
-    timestamp = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    timestamp = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
 
     # Format metrics
     def fmt(val: float | None, decimals: int = 4) -> str:
