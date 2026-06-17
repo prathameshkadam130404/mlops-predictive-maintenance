@@ -108,7 +108,6 @@ def check_retraining_needed(
         config = yaml.safe_load(f)
 
     retrain_config = config.get("retraining", {})
-    monitoring_config = config.get("monitoring", {})
 
     reasons: list[str] = []
     should_retrain = False

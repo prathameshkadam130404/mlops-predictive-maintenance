@@ -459,9 +459,9 @@ def main() -> None:
 
     # --- Layer 3: Concept Drift (if requested) ---
     if args.simulate_drift:
-        # Load pipeline to get sensor columns
-        from src.feature_engineering import FeaturePipeline
-        pipeline = FeaturePipeline.load("models/feature_pipeline.joblib")
+        # Load pipeline (result unused; validates artifact exists)
+        from src.feature_engineering import FeaturePipeline  # noqa: F811
+        _ = FeaturePipeline.load("models/feature_pipeline.joblib")
 
         drifted_data = simulate_concept_drift(
             current_data, feature_cols, noise_factor=0.15, shift_factor=0.1

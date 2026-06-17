@@ -151,12 +151,7 @@ def evaluate_on_test(
     # we need to match predictions to ground truth.
     # Strategy: use the last prediction value directly since test_features
     # was constructed from the last available cycles during feature engineering.
-    if len(y_pred_all) == len(test_rul):
-        y_pred = y_pred_all
-    else:
-        # Take predictions and match to ground truth count
-        # This handles the case where all cycles are in test features
-        y_pred = y_pred_all[:len(test_rul)]
+    y_pred = y_pred_all if len(y_pred_all) == len(test_rul) else y_pred_all[:len(test_rul)]
 
     y_true = test_rul
 

@@ -15,8 +15,11 @@ Production-grade REST API for RUL prediction with:
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
@@ -210,7 +213,7 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
         raise
     except Exception as e:
         logger.error("Prediction failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}") from e
 
 
 # ---------------------------------------------------------------------------
@@ -271,11 +274,11 @@ async def drift_check(request: DriftCheckRequest) -> DriftCheckResponse:
         reference_path = "data/features/train_features.parquet"
         try:
             reference_df = pd.read_parquet(reference_path)
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
             raise HTTPException(
                 status_code=503,
                 detail="Reference data not available. Run training pipeline first.",
-            )
+            ) from exc
 
         # Get overlapping feature columns
         feature_cols = [c for c in artifacts.pipeline.feature_columns  # type: ignore[union-attr]
@@ -304,4 +307,4 @@ async def drift_check(request: DriftCheckRequest) -> DriftCheckResponse:
         raise
     except Exception as e:
         logger.error("Drift check failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Drift check error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Drift check error: {str(e)}") from e
